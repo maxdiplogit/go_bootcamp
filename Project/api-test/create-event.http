@@ -1,0 +1,10 @@
+POST http://localhost:8080/events
+Content-Type: application/json
+Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3QxQGV4YW1wbGUuY29tIiwiZXhwIjoxNzEyMjI1MTI5LCJ1c2VySWQiOjF9.ypwBW9LwdS4F42daQKI_YlmUM0K1nsnT6ElIsS_8icE
+
+{
+    "name": "Hello",
+    "description": "World",
+    "location": "India",
+    "dateTime": "2025-01-01T19:30:00.000Z"
+}
