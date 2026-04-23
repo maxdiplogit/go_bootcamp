@@ -3,6 +3,7 @@ package main
 import (
 	"go_revision/arrays"
 	customstrings "go_revision/customStrings"
+	"go_revision/funcsref"
 	"go_revision/loopsref"
 	"go_revision/make_practice"
 	"go_revision/maps"
@@ -344,6 +345,177 @@ Sometimes Go is verbose, but Go is consistent.`
 	freq := loopsref.WordFrequency(text)
 	for _, wc := range freq {
 		fmt.Printf("  %-12s %d\n", wc.Word, wc.Count)
+	}
+
+	// -----------------------------------------------------------------
+	section("1. Basics")
+	fmt.Println("Add(3, 4):       ", funcsref.Add(3, 4))
+	fmt.Println("Greet:           ", funcsref.Greet("Asha"))
+	fmt.Println("NoArgsNoReturn:  ", funcsref.NoArgsNoReturn())
+
+	// -----------------------------------------------------------------
+	section("2. Call by value vs call by pointer")
+
+	// Plain int by value -- the original is untouched.
+	x_func := 42
+	insideValue := funcsref.FailedReset(x_func)
+	fmt.Printf("FailedReset:        x outside=%d, function returned=%d\n", x, insideValue)
+	// ^ Notice: the function returned 0, but x is still 42 here.
+
+	// Plain int by pointer -- we pass &x so the function can mutate it.
+	funcsref.SuccessfulReset(&x)
+	fmt.Printf("SuccessfulReset:    x outside=%d (now zero!)\n", x)
+
+	// Struct by value vs by pointer.
+	c := funcsref.CounterStruct{Count: 100}
+	funcsref.IncrementValue(c)
+	fmt.Printf("IncrementValue:     c.Count=%d (unchanged - struct was copied)\n", c.Count)
+
+	funcsref.IncrementPointer(&c)
+	fmt.Printf("IncrementPointer:   c.Count=%d (incremented - same struct)\n", c.Count)
+
+	// Slice -- the surprising case. Header was copied, but the data backs
+	// onto the same array, so the function's writes are visible to us.
+	func_nums := []int{1, 2, 3, 4}
+	funcsref.SliceMutation(func_nums)
+	fmt.Printf("SliceMutation:      nums=%v (changed even though we passed by value)\n", nums)
+
+	// -----------------------------------------------------------------
+	section("3. Multiple return values")
+	q, rem := funcsref.Divide(17, 5)
+	fmt.Printf("Divide(17, 5):      quotient=%d remainder=%d\n", q, rem)
+
+	// Use NEW names so := works cleanly:
+	sq, sok := funcsref.SafeDivide(20, 4)
+	fmt.Printf("SafeDivide(20, 4):  result=%d ok=%v\n", sq, sok)
+	sq, sok = funcsref.SafeDivide(20, 0) // plain = now, both already exist
+	fmt.Printf("SafeDivide(20, 0):  result=%d ok=%v\n", sq, sok)
+
+	// Discarding values with the blank identifier `_`.
+	q2, _ := funcsref.Divide(100, 3) // we don't care about the remainder
+	fmt.Printf("Divide w/ _ :       quotient only=%d\n", q2)
+
+	mn, mx, ok := funcsref.MinMax([]int{3, 1, 4, 1, 5, 9, 2, 6})
+	fmt.Printf("MinMax:             min=%d max=%d ok=%v\n", mn, mx, ok)
+	_, _, ok = funcsref.MinMax(nil)
+	fmt.Printf("MinMax(nil):        ok=%v (false because empty input)\n", ok)
+
+	// -----------------------------------------------------------------
+	section("4. Named return values")
+	first, last := funcsref.SplitName("Asha Rao")
+	fmt.Printf("SplitName:          first=%q last=%q\n", first, last)
+	first, last = funcsref.SplitName("Cher")
+	fmt.Printf("SplitName('Cher'):  first=%q last=%q (last is the zero value \"\")\n", first, last)
+
+	start, end, ok := funcsref.ParseRange("10-20")
+	fmt.Printf("ParseRange('10-20'):  start=%d end=%d ok=%v\n", start, end, ok)
+	start, end, ok = funcsref.ParseRange("oops")
+	fmt.Printf("ParseRange('oops'):   start=%d end=%d ok=%v\n", start, end, ok)
+
+	// -----------------------------------------------------------------
+	section("5. Variadic functions")
+	fmt.Println("SumAll():            ", funcsref.SumAll())           // 0
+	fmt.Println("SumAll(7):           ", funcsref.SumAll(7))          // 7
+	fmt.Println("SumAll(1, 2, 3, 4):  ", funcsref.SumAll(1, 2, 3, 4)) // 10
+
+	// Spreading an existing slice into a variadic call:
+	xs := []int{10, 20, 30}
+	fmt.Println("SumAll(xs...):       ", funcsref.SumAll(xs...)) // 60
+
+	fmt.Println(funcsref.LogPrefixed("INFO", "user", "logged", "in"))
+	fmt.Println(funcsref.LogPrefixed("ERROR", "no", "such", "file"))
+
+	// -----------------------------------------------------------------
+	section("6. Functions as values")
+	// Apply takes a function as a parameter.
+	fmt.Println("Apply(10, 3, AddOp):", funcsref.Apply(10, 3, funcsref.AddOp))
+	fmt.Println("Apply(10, 3, SubOp):", funcsref.Apply(10, 3, funcsref.SubOp))
+
+	// Inline anonymous function passed at the call site:
+	mul := func(a, b int) int { return a * b }
+	fmt.Println("Apply(10, 3, mul):  ", funcsref.Apply(10, 3, mul))
+
+	// Dispatch table: pick the operation by name.
+	ops := funcsref.OpsByName()
+	for _, name := range []string{"+", "-", "*", "/"} {
+		fmt.Printf("OpsByName[%q](20, 6) = %d\n", name, ops[name](20, 6))
+	}
+
+	// -----------------------------------------------------------------
+	section("7. Anonymous functions")
+	fmt.Println("AnonymousImmediate:", funcsref.AnonymousImmediate()) // 5*5+7*7 = 74
+
+	// FilterStrings with an inline predicate -- keeps non-empty strings.
+	words := []string{"hi", "", "world", "", "go"}
+	kept := funcsref.FilterStrings(words, func(s string) bool { return s != "" })
+	fmt.Println("FilterStrings (non-empty):", kept)
+
+	// Same function, different predicate -- keeps short strings.
+	short := funcsref.FilterStrings(words, func(s string) bool { return len(s) > 0 && len(s) <= 2 })
+	fmt.Println("FilterStrings (len<=2):   ", short)
+
+	// -----------------------------------------------------------------
+	section("8. Closures")
+	// Each call to MakeCounter creates an INDEPENDENT counter.
+	c1 := funcsref.MakeCounter()
+	c2 := funcsref.MakeCounter()
+	fmt.Println("c1():", c1(), c1(), c1()) // 1 2 3
+	fmt.Println("c2():", c2(), c2())       // 1 2 -- independent
+	fmt.Println("c1():", c1())             // 4 -- continues from where it was
+
+	// Configuration captured at creation:
+	double := funcsref.MakeMultiplier(2)
+	triple := funcsref.MakeMultiplier(3)
+	fmt.Println("double(5):", double(5)) // 10
+	fmt.Println("triple(5):", triple(5)) // 15
+
+	// Encapsulated state via paired closures:
+	deposit, balance := funcsref.MakeAccount(100.0)
+	deposit(50)
+	deposit(25)
+	deposit(10.50)
+	fmt.Printf("Account balance: %.2f\n", balance()) // 185.50
+
+	// -----------------------------------------------------------------
+	section("9. Recursion")
+	for i := 0; i <= 6; i++ {
+		fmt.Printf("Factorial(%d) = %d\n", i, funcsref.Factorial(i))
+	}
+	fmt.Print("Fibonacci 0..10: ")
+	for i := 0; i <= 10; i++ {
+		fmt.Print(funcsref.Fibonacci(i), " ")
+	}
+	fmt.Println()
+
+	// -----------------------------------------------------------------
+	section("10. Realistic example: Calculator")
+	calc := funcsref.NewCalculator(10)
+
+	// Apply named operations one at a time.
+	calc.Apply("double", func(x int) int { return x * 2 })
+	calc.Apply("plus5", func(x int) int { return x + 5 })
+
+	// ApplyMany takes any number of NamedOp values via variadic.
+	calc.ApplyMany(
+		funcsref.NamedOp{Name: "square", Op: func(x int) int { return x * x }},
+		funcsref.NamedOp{Name: "minus100", Op: func(x int) int { return x - 100 }},
+	)
+
+	fmt.Println(calc.Summary())
+	fmt.Println("History:")
+	for _, h := range calc.History {
+		fmt.Println("  ", h)
+	}
+
+	// PreloadedCalculator returns BOTH a calculator and a map of ops.
+	calc2, presets := funcsref.PreloadedCalculator(5, 3)
+	calc2.Apply("add(3)", presets["add"])
+	calc2.Apply("multiply(3)", presets["multiply"])
+	calc2.Apply("square", presets["square"])
+	fmt.Println()
+	fmt.Println("Preloaded:", calc2.Summary())
+	for _, h := range calc2.History {
+		fmt.Println("  ", h)
 	}
 
 }
