@@ -4,6 +4,7 @@ import (
 	"go_revision/arrays"
 	customstrings "go_revision/customStrings"
 	"go_revision/funcsref"
+	interfacesref "go_revision/interfaces"
 	"go_revision/loopsref"
 	"go_revision/make_practice"
 	"go_revision/maps"
@@ -705,5 +706,107 @@ Sometimes Go is verbose, but Go is consistent.`
 	// In C, we'd have to manually free it; in Go, unreachable = collectible.
 	fmt.Println("\n(The removed node is now unreachable; the GC will reclaim its memory.")
 	fmt.Println(" You did no malloc and no free. That's the whole point.)")
+
+	// Interfaces
+	// -----------------------------------------------------------------
+	section("1. Basics: defining and satisfying an interface")
+	// Pass two completely different concrete types to the same function.
+	// SayHi accepts any Greeter, so both work.
+	fmt.Println(interfacesref.SayHi(interfacesref.EnglishSpeaker{Name: "Asha"}))
+	fmt.Println(interfacesref.SayHi(interfacesref.SpanishSpeaker{Name: "Bo"}))
+
+	// -----------------------------------------------------------------
+	section("2. Why interfaces matter -- one function, many types")
+	// A heterogeneous slice of shapes -- something you couldn't express
+	// without an interface.
+	shapes := []interfacesref.Shape{
+		interfacesref.Rectangle{Width: 3, Height: 4},
+		interfacesref.Circle{Radius: 5},
+		interfacesref.Triangle{Base: 6, Height: 8},
+	}
+	fmt.Printf("Total area = %.2f\n", interfacesref.TotalArea(shapes))
+
+	// -----------------------------------------------------------------
+	section("3. Empty interface -- `any`")
+	// AnyDescription accepts anything. The %T verb shows the dynamic type
+	// the interface value is carrying.
+	fmt.Println(interfacesref.AnyDescription(42))
+	fmt.Println(interfacesref.AnyDescription("hello"))
+	fmt.Println(interfacesref.AnyDescription(true))
+	fmt.Println(interfacesref.AnyDescription(interfacesref.EnglishSpeaker{Name: "Cleo"}))
+
+	// -----------------------------------------------------------------
+	section("4. Type assertions -- recover the concrete type")
+	// Successful assertion: ok=true, value is what we asked for.
+	s, ok := interfacesref.AssertString("hello world")
+	fmt.Printf("AssertString(\"hello world\"): %q ok=%v\n", s, ok)
+
+	// Failed assertion: ok=false, value is the zero value (no panic).
+	s, ok = interfacesref.AssertString(42)
+	fmt.Printf("AssertString(42):            %q ok=%v\n", s, ok)
+
+	// Asserting for an INTERFACE rather than a concrete type:
+	// "is this thing capable of greeting?"
+	_, ok = interfacesref.AssertGreeter(interfacesref.EnglishSpeaker{Name: "Drew"})
+	fmt.Printf("AssertGreeter(EnglishSpeaker): ok=%v\n", ok)
+
+	_, ok = interfacesref.AssertGreeter(42)
+	fmt.Printf("AssertGreeter(42):             ok=%v\n", ok)
+
+	// -----------------------------------------------------------------
+	section("5. Type switch -- handle multiple possibilities")
+	for _, v := range []any{
+		nil,
+		7,
+		"hello",
+		true,
+		interfacesref.SpanishSpeaker{Name: "Eli"}, // matches the Greeter case
+		3.14, // no case matches -> default
+	} {
+		fmt.Printf("  %v -> %s\n", v, interfacesref.Describe(v))
+	}
+
+	// -----------------------------------------------------------------
+	section("6. Embedding interfaces")
+	store := &interfacesref.MemoryStore{}
+	// store satisfies Reader, Writer, and ReadWriter all at once -- because
+	// it has both Read and Write methods.
+	result := interfacesref.UseReadWriter(store)
+	fmt.Println("UseReadWriter result:", result)
+
+	// -----------------------------------------------------------------
+	section("7. Pointer receivers and interface satisfaction")
+	c_0 := interfacesref.NewIntCounter()
+	final := interfacesref.IncrementMany(c_0, 5)
+	fmt.Printf("After 5 increments, counter = %d\n", final)
+
+	// If we tried `interfacesref.IncrementMany(*c, 5)` instead, we'd get
+	// a compile error: "IntCounter does not implement Counter (Increment
+	// method has pointer receiver)". Useful to know -- the compiler tells
+	// you exactly what's wrong.
+
+	// -----------------------------------------------------------------
+	section("8. Realistic example: pluggable log sinks")
+	lines := []string{"server started", "user logged in", "shutting down"}
+
+	// Sink #1: writes to an in-memory string builder.
+	var sb strings.Builder
+	console := &interfacesref.ConsoleSink{Buffer: &sb}
+	interfacesref.LogAll(console, lines)
+	fmt.Println("Console sink output:")
+	fmt.Print(sb.String())
+
+	// Sink #2: stores lines in a slice. Good for tests.
+	memory := &interfacesref.MemorySink{}
+	interfacesref.LogAll(memory, lines)
+	fmt.Printf("Memory sink captured %d lines: %v\n", len(memory.Lines), memory.Lines)
+
+	// Sink #3: a PrefixSink that wraps another sink. Decorator pattern --
+	// because PrefixSink itself satisfies LogSink, it can stand in
+	// anywhere a LogSink is expected, including being wrapped again.
+	memory2 := &interfacesref.MemorySink{}
+	prefixed := &interfacesref.PrefixSink{Prefix: "[INFO]", Inner: memory2}
+	interfacesref.LogAll(prefixed, lines)
+	fmt.Printf("Prefixed sink captured: %v\n", memory2.Lines)
 
 }
