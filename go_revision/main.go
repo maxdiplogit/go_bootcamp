@@ -7,6 +7,7 @@ import (
 	"go_revision/loopsref"
 	"go_revision/make_practice"
 	"go_revision/maps"
+	"go_revision/pointersref"
 	"go_revision/slices"
 	"go_revision/structs"
 	"go_revision/utils"
@@ -517,5 +518,192 @@ Sometimes Go is verbose, but Go is consistent.`
 	for _, h := range calc2.History {
 		fmt.Println("  ", h)
 	}
+
+	// Pointers
+	// -----------------------------------------------------------------
+	section("1. Pointer basics: & and *")
+	fmt.Println(pointersref.ShowAddress())
+	direct, viaPointer := pointersref.ReadThrough()
+	fmt.Printf("ReadThrough:  direct=%d via pointer=%d (same value, two paths)\n", direct, viaPointer)
+	fmt.Println("WriteThrough:", pointersref.WriteThrough(), "(x was 42, now 100 via *p = 100)")
+	p, q := pointersref.Aliasing()
+	fmt.Printf("Aliasing:     *p=%d *q=%d (both see the same change)\n", p, q)
+
+	// -----------------------------------------------------------------
+	section("2. Nil pointers")
+	fmt.Println("Zero value of *int is nil?", pointersref.ZeroValue())
+
+	// SafeDeref: nil case
+	v, ok := pointersref.SafeDeref(nil)
+	fmt.Printf("SafeDeref(nil):  val=%d ok=%v\n", v, ok)
+
+	// SafeDeref: valid case
+	x_0 := 123
+	v, ok = pointersref.SafeDeref(&x_0)
+	fmt.Printf("SafeDeref(&x):   val=%d ok=%v\n", v, ok)
+
+	// -----------------------------------------------------------------
+	section("3. Creating pointers: &, new, constructors")
+	p1 := pointersref.WithAddress()
+	fmt.Printf("WithAddress():    *p = %d\n", *p1)
+
+	p2 := pointersref.WithNew()
+	fmt.Printf("WithNew():        *p = %d\n", *p2)
+
+	cfg := pointersref.NewConfig("example.com")
+	fmt.Printf("NewConfig('example.com'): %+v\n", cfg)
+
+	// -----------------------------------------------------------------
+	section("4. Pointers with structs")
+	pt := pointersref.Point{X: 0, Y: 0}
+
+	// Value: returns a new modified Point; the caller's pt is untouched
+	// unless they reassign.
+	moved := pointersref.MoveValue(pt, 3, 4)
+	fmt.Printf("MoveValue:    original=%+v returned=%+v\n", pt, moved)
+
+	// Pointer: modifies the caller's Point directly.
+	pointersref.MovePointer(&pt, 10, 20)
+	fmt.Printf("MovePointer:  original=%+v (modified in place)\n", pt)
+
+	// first, second := pointersref.ShareStruct()
+	// fmt.Printf("ShareStruct:  via p=%+v via q=%+v (same underlying Point)\n", first, second)
+
+	local := pointersref.ReturnLocalPointer()
+	fmt.Printf("ReturnLocalPointer: %+v (safe in Go thanks to escape analysis)\n", *local)
+
+	// -----------------------------------------------------------------
+	section("5. Pointers with slices")
+	nums_0 := []int{1, 2, 3, 4}
+	pointersref.DoubleSliceContents(nums_0)
+	fmt.Println("DoubleSliceContents:", nums, "(mutations visible -- slice header was copied, but data is shared)")
+
+	// Demonstrate the append pitfall.
+	nums2 := []int{1, 2, 3}
+	pointersref.AppendWithoutPointer(nums2, 99)
+	fmt.Println("AppendWithoutPointer:", nums2, "(unchanged! - the function's header was a copy)")
+
+	// Correct: reassign the return value.
+	nums2 = pointersref.AppendReturning(nums2, 99)
+	fmt.Println("AppendReturning:    ", nums2, "(idiomatic Go: return new slice, caller reassigns)")
+
+	// Alternative: pass *[]int.
+	pointersref.AppendViaPointer(&nums2, 111)
+	fmt.Println("AppendViaPointer:   ", nums2, "(less common but sometimes useful)")
+
+	// Slice of VALUES: range gives copies, mutation in loop doesn't stick.
+	items := []pointersref.Item{
+		{Name: "a", Count: 1},
+		{Name: "b", Count: 2},
+	}
+	pointersref.IncrementAllValues(items)
+	fmt.Println("IncrementAllValues:       ", items, "(BUG: nothing was modified!)")
+
+	pointersref.IncrementAllValuesFixed(items)
+	fmt.Println("IncrementAllValuesFixed:  ", items, "(index-based mutation works)")
+
+	// Slice of POINTERS: range gives pointer copies, but they point to the same data.
+	itemPtrs := []*pointersref.Item{
+		{Name: "a", Count: 1},
+		{Name: "b", Count: 2},
+	}
+	pointersref.IncrementAllPointers(itemPtrs)
+	fmt.Print("IncrementAllPointers:      ")
+	for _, p := range itemPtrs {
+		fmt.Printf("%+v ", *p)
+	}
+	fmt.Println("(works without index tricks)")
+
+	// -----------------------------------------------------------------
+	section("6. Pointers with maps")
+	scores := map[string]int{"Asha": 100}
+	pointersref.AddToMap(scores, "Bo", 90)
+	fmt.Println("AddToMap:", scores, "(passing a map already lets the function mutate it)")
+
+	// Value in a map: can't take address, so we do copy-modify-write.
+	inventory := map[string]pointersref.Item{
+		"apple": {Name: "apple", Count: 5},
+	}
+	pointersref.IncrementMapValue(inventory, "apple")
+	fmt.Printf("IncrementMapValue:    %+v (workaround 1: read, modify, write back)\n", inventory)
+
+	// Pointer in a map: can modify in place through the pointer.
+	inventoryPtr := map[string]*pointersref.Item{
+		"apple": {Name: "apple", Count: 5},
+	}
+	pointersref.IncrementMapPointer(inventoryPtr, "apple")
+	fmt.Printf("IncrementMapPointer:  apple=%+v (workaround 2: store pointers directly)\n", *inventoryPtr["apple"])
+
+	// -----------------------------------------------------------------
+	section("7. Nil-pointer panic (recovered for display)")
+	fmt.Println(pointersref.DerefNilRecovered())
+	fmt.Println("(program didn't crash because we used recover(); don't rely on this in real code)")
+
+	// -----------------------------------------------------------------
+	section("8. Memory: stack vs heap")
+	heapP := pointersref.MakeOnHeap()
+	fmt.Printf("MakeOnHeap:   %+v (escape analysis placed the Point on the heap)\n", *heapP)
+
+	stackP := pointersref.NoEscape()
+	fmt.Printf("NoEscape:     %+v (returned by value; stays on the stack)\n", stackP)
+
+	fmt.Println()
+	fmt.Println("You can verify these decisions with:")
+	fmt.Println("    go build -gcflags=\"-m\" ./...")
+	fmt.Println("and look for 'moved to heap' / 'does not escape' lines.")
+
+	// Show memory stats before, during, and after some work.
+	heapBefore, totalBefore, gcBefore := pointersref.MemStats()
+	fmt.Printf("\nBefore work:  heap=%dKB  cumulative=%dKB  gc_cycles=%d\n",
+		heapBefore/1024, totalBefore/1024, gcBefore)
+
+	// -----------------------------------------------------------------
+	section("9. GC-friendly vs GC-hostile patterns")
+	// Do some allocation work.
+	const iters = 10_000
+	_ = pointersref.AllocateInLoop(iters)
+	heapMid, totalMid, gcMid := pointersref.MemStats()
+	fmt.Printf("After AllocateInLoop(%d):  heap=%dKB  cumulative=%dKB  gc_cycles=%d\n",
+		iters, heapMid/1024, totalMid/1024, gcMid)
+
+	_ = pointersref.ReuseBuffer(iters)
+	heapAfter, totalAfter, gcAfter := pointersref.MemStats()
+	fmt.Printf("After ReuseBuffer(%d):     heap=%dKB  cumulative=%dKB  gc_cycles=%d\n",
+		iters, heapAfter/1024, totalAfter/1024, gcAfter)
+
+	fmt.Printf("\nNote cumulative-alloc difference:\n")
+	fmt.Printf("  AllocateInLoop added ~%dKB of alloc pressure\n", (totalMid-totalBefore)/1024)
+	fmt.Printf("  ReuseBuffer added    ~%dKB (essentially nothing)\n", (totalAfter-totalMid)/1024)
+
+	// Force a GC to observe the counter increment.
+	pointersref.ForceGC()
+	_, _, gcForced := pointersref.MemStats()
+	fmt.Printf("\nAfter ForceGC(): gc_cycles=%d (should have incremented)\n", gcForced)
+
+	// Preallocation demo.
+	sq_0 := pointersref.PreallocateSlice(10)
+	fmt.Println("PreallocateSlice(10):", sq_0, "(make([]T, 0, n) avoids regrow-and-copy)")
+
+	// -----------------------------------------------------------------
+	section("10. Linked list -- the canonical pointer structure")
+	list := pointersref.NewLinkedList()
+	list.Append(1)
+	list.Append(2)
+	list.Append(3)
+	list.Prepend(0) // front
+	list.Append(4)  // back
+	fmt.Println("After append/prepend:", list.ToSlice())
+	fmt.Println("Length:", list.Length())
+
+	removed := list.RemoveFirst(2)
+	fmt.Printf("RemoveFirst(2) -> %v, list now: %v\n", removed, list.ToSlice())
+
+	removed = list.RemoveFirst(999)
+	fmt.Printf("RemoveFirst(999) -> %v (nothing to remove), list unchanged: %v\n", removed, list.ToSlice())
+
+	// The removed node had its memory reclaimed automatically by the GC.
+	// In C, we'd have to manually free it; in Go, unreachable = collectible.
+	fmt.Println("\n(The removed node is now unreachable; the GC will reclaim its memory.")
+	fmt.Println(" You did no malloc and no free. That's the whole point.)")
 
 }
