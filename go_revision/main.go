@@ -4,6 +4,7 @@ import (
 	"go_revision/arrays"
 	customstrings "go_revision/customStrings"
 	"go_revision/funcsref"
+	genericsref "go_revision/generics"
 	interfacesref "go_revision/interfaces"
 	"go_revision/loopsref"
 	"go_revision/make_practice"
@@ -808,5 +809,113 @@ Sometimes Go is verbose, but Go is consistent.`
 	prefixed := &interfacesref.PrefixSink{Prefix: "[INFO]", Inner: memory2}
 	interfacesref.LogAll(prefixed, lines)
 	fmt.Printf("Prefixed sink captured: %v\n", memory2.Lines)
+
+	// Generics
+
+	// -----------------------------------------------------------------
+	section("1. First generic function -- Max")
+	// Same function, three different types. Type inference figures out T.
+	fmt.Println("Max(3, 7):           ", genericsref.Max(3, 7))
+	fmt.Println("Max(3.14, 2.71):     ", genericsref.Max(3.14, 2.71))
+	fmt.Println("Max(\"apple\", \"pear\"):", genericsref.Max("apple", "pear"))
+
+	fmt.Println("Min(3, 7):           ", genericsref.Min(3, 7))
+
+	// -----------------------------------------------------------------
+	section("2. Custom constraint -- Number, Sum")
+	fmt.Println("Sum([]int{1,2,3,4,5}):       ", genericsref.Sum([]int{1, 2, 3, 4, 5}))
+	fmt.Println("Sum([]float64{1.5, 2.5, 3}): ", genericsref.Sum([]float64{1.5, 2.5, 3}))
+	// Sum([]string{...}) would NOT compile -- string isn't in `Number`.
+
+	// -----------------------------------------------------------------
+	section("3. The `comparable` constraint -- Contains, IndexOf")
+	fmt.Println("Contains([1 2 3], 2):       ", genericsref.Contains([]int{1, 2, 3}, 2))
+	fmt.Println("Contains([\"a\" \"b\"], \"x\"):  ", genericsref.Contains([]string{"a", "b"}, "x"))
+	fmt.Println("IndexOf([10 20 30], 20):    ", genericsref.IndexOf([]int{10, 20, 30}, 20))
+	fmt.Println("IndexOf([10 20 30], 99):    ", genericsref.IndexOf([]int{10, 20, 30}, 99))
+
+	// -----------------------------------------------------------------
+	section("4. Type inference -- when you can omit [T]")
+	for _, line := range genericsref.CallExamples() {
+		fmt.Println(" ", line)
+	}
+
+	// -----------------------------------------------------------------
+	section("5. Generic higher-order functions")
+	nums_1 := []int{1, 2, 3, 4, 5}
+
+	// Map: int -> int (square each)
+	squared := genericsref.MapSlice(nums_1, func(n int) int { return n * n })
+	fmt.Println("MapSlice (square):     ", squared)
+
+	// Map: int -> string (different types -- T=int, U=string)
+	asStrings := genericsref.MapSlice(nums, func(n int) string {
+		return fmt.Sprintf("n%d", n)
+	})
+	fmt.Println("MapSlice (int->string):", asStrings)
+
+	// Filter: keep even numbers
+	evens := genericsref.FilterSlice(nums, func(n int) bool { return n%2 == 0 })
+	fmt.Println("FilterSlice (evens):   ", evens)
+
+	// Reduce: sum (T=int, U=int)
+	total := genericsref.Reduce(nums, 0, func(acc, v int) int { return acc + v })
+	fmt.Println("Reduce (sum):          ", total)
+
+	// Reduce: build a string (T=int, U=string -- different types!)
+	joined := genericsref.Reduce(nums, "", func(acc string, v int) string {
+		if acc == "" {
+			return fmt.Sprintf("%d", v)
+		}
+		return acc + "," + fmt.Sprintf("%d", v)
+	})
+	fmt.Println("Reduce (join):         ", joined)
+
+	// -----------------------------------------------------------------
+	section("6. Generic type -- Stack[T]")
+	// Two stacks of completely different types from the same definition.
+	intStack := genericsref.NewStack[int]()
+	intStack.Push(1)
+	intStack.Push(2)
+	intStack.Push(3)
+	fmt.Printf("intStack: len=%d\n", intStack.Len())
+	for intStack.Len() > 0 {
+		v, _ := intStack.Pop()
+		fmt.Printf("  popped %d\n", v)
+	}
+
+	stringStack := genericsref.NewStack[string]()
+	stringStack.Push("first")
+	stringStack.Push("second")
+	v_1, _ := stringStack.Peek()
+	fmt.Printf("stringStack peek: %q (len still %d)\n", v_1, stringStack.Len())
+
+	// Note: intStack and stringStack are DIFFERENT TYPES.
+	// You can't assign one to the other; the compiler treats Stack[int]
+	// and Stack[string] as completely separate.
+
+	// -----------------------------------------------------------------
+	section("7. Generic type with two parameters -- KVPair, KeyValueStore")
+	pair := genericsref.KVPair[string, int]{Key: "score", Value: 42}
+	fmt.Println("KVPair:", pair) // uses the String() method
+
+	store_0 := genericsref.NewKVStore[string, int]()
+	store_0.Set("apple", 50)
+	store_0.Set("banana", 20)
+	store_0.Set("cherry", 80)
+	apple, ok := store_0.Get("apple")
+	fmt.Printf("store[\"apple\"] = %d (ok=%v)\n", apple, ok)
+	missing, ok := store_0.Get("grape")
+	fmt.Printf("store[\"grape\"] = %d (ok=%v -- not in store)\n", missing, ok)
+
+	// -----------------------------------------------------------------
+	section("8. Generic interface -- Container[T] + SumContainer")
+	list_0 := genericsref.NewSimpleList[int]()
+	list_0.Add(10)
+	list_0.Add(20)
+	list_0.Add(30)
+	// SimpleList[int] satisfies Container[int].
+	// SumContainer accepts any Container[T] where T is a Number.
+	fmt.Println("SumContainer(list):", genericsref.SumContainer[int](list_0))
 
 }
