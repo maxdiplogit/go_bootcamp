@@ -3,6 +3,7 @@ package main
 import (
 	"go_revision/arrays"
 	customstrings "go_revision/customStrings"
+	"go_revision/errorsref"
 	"go_revision/funcsref"
 	genericsref "go_revision/generics"
 	interfacesref "go_revision/interfaces"
@@ -15,6 +16,7 @@ import (
 	"go_revision/utils"
 
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -917,5 +919,124 @@ Sometimes Go is verbose, but Go is consistent.`
 	// SimpleList[int] satisfies Container[int].
 	// SumContainer accepts any Container[T] where T is a Number.
 	fmt.Println("SumContainer(list):", genericsref.SumContainer[int](list_0))
+
+	// Error Hadnling in Go
+	// -----------------------------------------------------------------
+	section("1. Basic error handling -- (result, error) pattern")
+	// Successful case: use the result, ignore (or check nil) the error.
+	q_2, err := errorsref.Divide(10, 2)
+	fmt.Printf("Divide(10, 2): result=%g err=%v\n", q_2, err)
+
+	// Failure case: result is meaningless, error tells you what happened.
+	q_2, err = errorsref.Divide(10, 0)
+	fmt.Printf("Divide(10, 0): result=%g err=%v\n", q_2, err)
+
+	// fmt.Errorf with formatted message.
+	scores_0 := map[string]int{"asha": 100}
+	_, err = errorsref.Lookup(scores_0, "bo")
+	fmt.Printf("Lookup missing key: err=%v\n", err)
+
+	// -----------------------------------------------------------------
+	section("2. Sentinel errors -- exported error values")
+	// Successful FindUser.
+	name, err := errorsref.FindUser(1)
+	fmt.Printf("FindUser(1): name=%q err=%v\n", name, err)
+
+	// Failed FindUser -- returns the sentinel directly (not wrapped).
+	_, err = errorsref.FindUser(99)
+	fmt.Printf("FindUser(99): err=%v\n", err)
+
+	// Plain == works HERE because the error wasn't wrapped.
+	fmt.Printf("err == ErrUserNotFound? %v\n", err == errorsref.ErrUserNotFound)
+	// In real code, prefer errors.Is even for unwrapped sentinels --
+	// it survives later wrapping if you ever change the code.
+	fmt.Printf("errors.Is(err, ErrUserNotFound)? %v\n",
+		errors.Is(err, errorsref.ErrUserNotFound))
+
+	// -----------------------------------------------------------------
+	section("3. Custom error types -- structured errors")
+	err = errorsref.ValidateEmail("")
+	fmt.Printf("ValidateEmail(\"\"):       err=%v\n", err)
+
+	err = errorsref.ValidateEmail("nopeAtNothing")
+	fmt.Printf("ValidateEmail(\"nope...\"): err=%v\n", err)
+
+	err = errorsref.ValidateEmail("ok@example.com")
+	fmt.Printf("ValidateEmail(ok):       err=%v\n", err)
+
+	// -----------------------------------------------------------------
+	section("4. Wrapping errors with %w")
+	// StartApp wraps LoadUserConfig wraps FindUser. Each layer added
+	// context, but the original sentinel is still inside.
+	err = errorsref.StartApp()
+	fmt.Println("Full chain message:", err)
+
+	// Look at the chain by repeatedly calling errors.Unwrap.
+	fmt.Println("\nWalking the chain with errors.Unwrap:")
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		fmt.Printf("  - %v\n", e)
+	}
+
+	// -----------------------------------------------------------------
+	section("5. Unwrapping with errors.Is and errors.As")
+	// The error from StartApp is wrapped multiple times, but errors.Is
+	// finds ErrUserNotFound inside.
+	fmt.Println("Is wrapped err equal to ErrUserNotFound?",
+		errors.Is(err, errorsref.ErrUserNotFound))
+	fmt.Println("Is wrapped err equal to ErrInvalidEmail?",
+		errors.Is(err, errorsref.ErrInvalidEmail))
+
+	// errors.As: extract a *ValidationError from a chain.
+	emailErr := errorsref.ValidateEmail("badformat")
+	field, msg, ok := errorsref.ExtractValidationError(emailErr)
+	fmt.Printf("Extracted from ValidationError: field=%q msg=%q ok=%v\n",
+		field, msg, ok)
+
+	// errors.As against an error that ISN'T a *ValidationError.
+	field, msg, ok = errorsref.ExtractValidationError(errorsref.ErrUserNotFound)
+	fmt.Printf("Extracted from sentinel:        field=%q msg=%q ok=%v\n",
+		field, msg, ok)
+
+	// -----------------------------------------------------------------
+	section("6. defer -- cleanup and return interaction")
+	fmt.Println("DeferOrder:       returns =", errorsref.DeferOrder())
+	// Note: DeferOrder returns "body". The defers DID run, but they
+	// modified a local builder that we already extracted before they
+	// fired. The returned string was set BEFORE any defer ran.
+
+	fmt.Println("DeferOrderNamed:  returns =", errorsref.DeferOrderNamed())
+	// Now we use a NAMED return. The defers append to it. The caller
+	// sees the final, post-defer value.
+
+	snap, latest := errorsref.DeferArgsCapture()
+	fmt.Printf("DeferArgsCapture: snapshot(captured)=%d latest(closure)=%d\n",
+		snap, latest)
+	// snapshot is 1: the value of x AT defer registration time.
+	// latest is 99: the closure read x by reference, after we changed it.
+
+	// -----------------------------------------------------------------
+	section("7. panic and recover")
+	// Successful path: no panic.
+	r_0, err := errorsref.SafeDivide(10, 2)
+	fmt.Printf("SafeDivide(10, 2): result=%d err=%v\n", r_0, err)
+
+	// Failing path: MustDivide panics, SafeDivide's deferred recover
+	// catches it and returns a normal error. The program does NOT crash.
+	r_0, err = errorsref.SafeDivide(10, 0)
+	fmt.Printf("SafeDivide(10, 0): result=%d err=%v\n", r_0, err)
+	fmt.Println("(notice: the program is still running -- recover prevented the crash)")
+
+	// -----------------------------------------------------------------
+	section("8. Putting it together -- a registration flow")
+	store_1 := errorsref.NewUserStore()
+
+	// Validation failure path.
+	fmt.Println(store_1.HandleRegister(1, ""))
+	// Validation failure (no @).
+	fmt.Println(store_1.HandleRegister(1, "noatsign"))
+	// Success.
+	fmt.Println(store_1.HandleRegister(1, "asha@example.com"))
+	// Conflict (id already used).
+	fmt.Println(store_1.HandleRegister(1, "another@example.com"))
 
 }
