@@ -6,6 +6,7 @@ import (
 	"go_revision/errorsref"
 	"go_revision/funcsref"
 	genericsref "go_revision/generics"
+	"go_revision/goroutines"
 	interfacesref "go_revision/interfaces"
 	"go_revision/loopsref"
 	"go_revision/make_practice"
@@ -1039,4 +1040,24 @@ Sometimes Go is verbose, but Go is consistent.`
 	// Conflict (id already used).
 	fmt.Println(store_1.HandleRegister(1, "another@example.com"))
 
+	// Goroutines
+	goroutines.ExecuteExample()
+
+	fmt.Println("ChannelExample: ", goroutines.ChannelExample())
+
+	goroutines.BufferedChannelExample()
+
+	goroutines.RangeOverChannelExample()
+
+	fmt.Println("SelectChannelExample: ", goroutines.SelectChannelExample())
+
+	fmt.Println("TimeoutSelectChannelExample: ", goroutines.TimeoutSelectChannelExample())
+
+	fmt.Println("DefaultSelectChannelExample: ", goroutines.DefaultSelectChannelExample())
+
+	goroutines.WaitgroupExample()
+
+	fmt.Println("MutexExample Result: ", goroutines.MutexExample())
+
+	goroutines.WorkerPoolExample()
 }
