@@ -2,6 +2,7 @@ package main
 
 import (
 	"go_revision/arrays"
+	"go_revision/contextref"
 	customstrings "go_revision/customStrings"
 	"go_revision/errorsref"
 	"go_revision/funcsref"
@@ -16,6 +17,7 @@ import (
 	"go_revision/structs"
 	"go_revision/utils"
 
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1060,4 +1062,74 @@ Sometimes Go is verbose, but Go is consistent.`
 	fmt.Println("MutexExample Result: ", goroutines.MutexExample())
 
 	goroutines.WorkerPoolExample()
+
+	// ContextRefExample
+	// -----------------------------------------------------------------
+	section("1. Why: raw channel vs context for cancellation")
+	fmt.Println("Raw channel:", contextref.CancelWithRawChannel())
+	fmt.Println("Context:    ", contextref.CancelWithContext())
+	fmt.Println()
+	fmt.Println("Both achieve the same thing. Context is the standard,")
+	fmt.Println("composable way; raw channels work but don't scale.")
+
+	// -----------------------------------------------------------------
+	section("2. WithCancel: manual cancellation")
+	count := contextref.RunWithManualCancel()
+	fmt.Printf("Background job ran %d iterations before cancel\n", count)
+
+	// -----------------------------------------------------------------
+	section("3. WithTimeout: automatic cancellation after a duration")
+	// Slow operation: timeout fires before completion
+	err_1 := contextref.RunFetchTooSlow()
+	fmt.Printf("Slow fetch: err = %v\n", err_1)
+
+	// Fast operation: completes before timeout
+	res_3, err := contextref.RunFetchInTime()
+	fmt.Printf("Fast fetch: result = %q, err = %v\n", res_3, err)
+
+	// -----------------------------------------------------------------
+	section("4. Classifying context errors")
+	// Build a context, cancel it, and observe the classification.
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	cancel1()
+	fmt.Println("After manual cancel:    ", contextref.ClassifyContextError(ctx1.Err()))
+
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 1*time.Millisecond)
+	defer cancel2()
+	time.Sleep(5 * time.Millisecond)
+	fmt.Println("After deadline expired: ", contextref.ClassifyContextError(ctx2.Err()))
+
+	// -----------------------------------------------------------------
+	section("5. Tree propagation: parent cancel propagates to child")
+	parentErr, childErr := contextref.ParentChildPropagation()
+	fmt.Println("Parent error:", parentErr)
+	fmt.Println("Child error: ", childErr)
+	fmt.Println("Both got canceled when we canceled only the parent.")
+
+	fmt.Println()
+	fmt.Println("Fan-out: 4 workers all share one context with a 30ms deadline")
+	results := contextref.FanOutWithCancel(4)
+	for i, c := range results {
+		fmt.Printf("  worker %d: %d iterations\n", i, c)
+	}
+
+	// -----------------------------------------------------------------
+	section("6. WithValue: request-scoped data")
+	fmt.Println(contextref.SimulateRequestHandler())
+	fmt.Println()
+	fmt.Println("Use sparingly! WithValue is for cross-cutting concerns")
+	fmt.Println("(request IDs, trace spans, auth info) -- NOT real arguments.")
+
+	// -----------------------------------------------------------------
+	section("7. Realistic mini-handler")
+	// Successful case: parent context never cancels, query completes in time
+	result_3, err := contextref.HandleRequest(context.Background(), "req-001")
+	fmt.Printf("Normal request: result=%q err=%v\n", result_3, err)
+
+	// Parent context with very short deadline -- handler will time out
+	tightCtx, tightCancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer tightCancel()
+	result, err = contextref.HandleRequest(tightCtx, "req-002")
+	fmt.Printf("Tight deadline: result=%q err=%v\n", result, err)
+
 }
