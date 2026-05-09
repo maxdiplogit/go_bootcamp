@@ -2,6 +2,7 @@ package main
 
 import (
 	"go_revision/arrays"
+	"go_revision/concurrency_patterns"
 	"go_revision/contextref"
 	customstrings "go_revision/customStrings"
 	"go_revision/errorsref"
@@ -1132,4 +1133,6 @@ Sometimes Go is verbose, but Go is consistent.`
 	result, err = contextref.HandleRequest(tightCtx, "req-002")
 	fmt.Printf("Tight deadline: result=%q err=%v\n", result, err)
 
+	// Concurrency Patterns
+	concurrency_patterns.PipelinePatternExample()
 }
